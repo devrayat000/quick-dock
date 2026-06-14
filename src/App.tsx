@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
@@ -15,6 +15,31 @@ export default function App() {
   const [dropping, setDropping] = useState(false);
   const { addItem, clearAll, updateItem } = useShelfStore();
   useEviction();
+
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const hideShelf = useCallback(async () => {
+    if (hideTimer.current) {
+      clearTimeout(hideTimer.current);
+      hideTimer.current = null;
+    }
+    setVisible(false);
+    await new Promise<void>((r) => setTimeout(r, 220));
+    await invoke("hide_shelf");
+  }, []);
+
+  // Schedule hide after mouse leaves — cancelled if mouse re-enters
+  const scheduleHide = useCallback(() => {
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    hideTimer.current = setTimeout(() => void hideShelf(), 600);
+  }, [hideShelf]);
+
+  const cancelHide = useCallback(() => {
+    if (hideTimer.current) {
+      clearTimeout(hideTimer.current);
+      hideTimer.current = null;
+    }
+  }, []);
 
   const handleDrop = useCallback(
     async (paths: string[]) => {
@@ -62,20 +87,34 @@ export default function App() {
     }
   }, []);
 
-  const hideShelf = useCallback(async () => {
-    setVisible(false);
-    await new Promise<void>((r) => setTimeout(r, 220));
-    await appWindow.hide();
-  }, []);
-
   useEffect(() => {
+    let cancelDragDrop = false;
+    let unlistenDragDrop: (() => void) | undefined;
+    appWindow
+      .onDragDropEvent((e) => {
+        const p = e.payload;
+        if (p.type === "drop") {
+          void handleDrop(p.paths);
+          // mouse still over shelf after drop — onMouseLeave handles future hide
+        } else if (p.type === "enter") {
+          cancelHide();
+          setDropping(true);
+        } else if (p.type === "leave") {
+          // drag left without dropping — start hide countdown
+          setDropping(false);
+          scheduleHide();
+        }
+      })
+      .then((fn) => {
+        if (cancelDragDrop) fn();
+        else unlistenDragDrop = fn;
+      });
+
     const listeners = [
-      listen("quickdock://shelf-show", () => setVisible(true)),
-      listen<{ paths: string[] }>("quickdock://drop", (e) =>
-        handleDrop(e.payload.paths),
-      ),
-      listen("quickdock://drag-enter", () => setDropping(true)),
-      listen("quickdock://drag-leave", () => setDropping(false)),
+      listen("quickdock://shelf-show", () => {
+        cancelHide();
+        setVisible(true);
+      }),
       listen("quickdock://clear-all", () => clearAll()),
     ];
 
@@ -89,13 +128,20 @@ export default function App() {
     window.addEventListener("keydown", onKey);
 
     return () => {
+      cancelDragDrop = true;
+      unlistenDragDrop?.();
       listeners.forEach((p) => p.then((f) => f()));
       window.removeEventListener("keydown", onKey);
+      if (hideTimer.current) clearTimeout(hideTimer.current);
     };
-  }, [handleDrop, handlePaste, hideShelf, clearAll]);
+  }, [handleDrop, handlePaste, hideShelf, scheduleHide, cancelHide, clearAll]);
 
   return (
-    <div className="w-full h-screen flex flex-col overflow-hidden bg-transparent">
+    <div
+      className="w-full h-screen flex flex-col overflow-hidden bg-transparent"
+      onMouseEnter={cancelHide}
+      onMouseLeave={scheduleHide}
+    >
       <div
         className={[
           "flex flex-col h-full w-full",
@@ -104,7 +150,7 @@ export default function App() {
         ].join(" ")}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-3 py-2 border-b border-white/10 flex-shrink-0">
+        <div className="flex items-center justify-between px-3 py-2 border-b border-white/10 shrink-0">
           <span className="text-sm font-semibold text-white/80 tracking-wide">
             QuickDock
           </span>
@@ -126,7 +172,7 @@ export default function App() {
 
         {/* Drop-zone indicator */}
         {dropping && (
-          <div className="mx-2 mt-2 rounded-lg border-2 border-dashed border-blue-400/60 bg-blue-400/[0.08] py-3 text-center text-xs text-blue-300/80 flex-shrink-0">
+          <div className="mx-2 mt-2 rounded-lg border-2 border-dashed border-blue-400/60 bg-blue-400/8 py-3 text-center text-xs text-blue-300/80 flex-shrink-0">
             Drop files here
           </div>
         )}
@@ -137,7 +183,7 @@ export default function App() {
         </div>
 
         {/* Footer paste button */}
-        <div className="px-2 py-2 border-t border-white/10 flex-shrink-0">
+        <div className="px-2 py-2 border-t border-white/10 shrink-0">
           <button
             onClick={() => void handlePaste()}
             className="w-full text-xs text-white/40 hover:text-white/70 py-1.5 rounded hover:bg-white/10 transition-colors flex items-center justify-center gap-1.5"

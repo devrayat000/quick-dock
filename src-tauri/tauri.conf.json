@@ -16,7 +16,7 @@
         "title": "QuickDock",
         "width": 340,
         "height": 700,
-        "x": 0,
+        "x": 9999,
         "y": 0,
         "visible": false,
         "transparent": true,
@@ -30,7 +30,7 @@
       {
         "label": "edge",
         "title": "QuickDock Edge",
-        "width": 2,
+        "width": 10,
         "height": 2160,
         "x": 0,
         "y": 0,

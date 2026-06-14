@@ -2,9 +2,79 @@ mod assets;
 mod dragout;
 mod edge;
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{Emitter, Manager};
+
+static SHELF_VISIBLE: AtomicBool = AtomicBool::new(false);
+static VIBRANCY_APPLIED: AtomicBool = AtomicBool::new(false);
+
+fn do_show_shelf(app: &tauri::AppHandle) {
+    if SHELF_VISIBLE.load(Ordering::Relaxed) {
+        return;
+    }
+    let Some(win) = app.get_webview_window("main") else {
+        return;
+    };
+
+    // Position on-screen before showing so no flash at wrong location
+    if let Ok(Some(monitor)) = win.primary_monitor() {
+        let s = monitor.size();
+        let p = monitor.position();
+        let shelf_w = 340_i32;
+        let shelf_h = (s.height as i32).min(700);
+        let x = p.x + s.width as i32 - shelf_w - 10;
+        let y = p.y + (s.height as i32 - shelf_h) / 2;
+        let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
+        let _ = win.set_size(tauri::PhysicalSize::new(shelf_w as u32, shelf_h as u32));
+    }
+
+    // First show: make visible then apply vibrancy so DWM composites the material
+    if !VIBRANCY_APPLIED.load(Ordering::Relaxed) {
+        let _ = win.show();
+        #[cfg(target_os = "windows")]
+        {
+            use window_vibrancy::{apply_acrylic, apply_mica};
+            if apply_acrylic(&win, Some((18, 18, 18, 90))).is_err() {
+                let _ = apply_mica(&win, Some(true));
+            }
+            // Nudge to force DWM recomposition
+            if let Ok(sz) = win.inner_size() {
+                let _ = win.set_size(tauri::PhysicalSize::new(sz.width + 1, sz.height));
+                let _ = win.set_size(tauri::PhysicalSize::new(sz.width, sz.height));
+            }
+        }
+        VIBRANCY_APPLIED.store(true, Ordering::Relaxed);
+    }
+
+    let _ = win.set_focus();
+    let _ = win.emit("quickdock://shelf-show", ());
+    SHELF_VISIBLE.store(true, Ordering::Relaxed);
+}
+
+fn do_hide_shelf(app: &tauri::AppHandle) {
+    if !SHELF_VISIBLE.load(Ordering::Relaxed) {
+        return;
+    }
+    let Some(win) = app.get_webview_window("main") else {
+        return;
+    };
+    // Move off-screen instead of .hide() — keeps DWM compositing the material
+    // so Acrylic/Mica is still active on next show without re-applying
+    let _ = win.set_position(tauri::PhysicalPosition::new(30000_i32, 0_i32));
+    SHELF_VISIBLE.store(false, Ordering::Relaxed);
+}
+
+#[tauri::command]
+fn show_shelf(app: tauri::AppHandle) {
+    do_show_shelf(&app);
+}
+
+#[tauri::command]
+fn hide_shelf(app: tauri::AppHandle) {
+    do_hide_shelf(&app);
+}
 
 #[tauri::command]
 fn generate_thumbnail(path: String) -> Result<String, String> {
@@ -23,7 +93,6 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
             setup_tray(app)?;
-            setup_vibrancy(app);
             edge::setup_edge_window(app)?;
             setup_drag_handlers(app);
             Ok(())
@@ -31,7 +100,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             generate_thumbnail,
             classify_path,
-            dragout::start_file_drag
+            dragout::start_file_drag,
+            show_shelf,
+            hide_shelf,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -49,14 +120,10 @@ fn setup_tray(app: &mut tauri::App) -> tauri::Result<()> {
         .tooltip("QuickDock – Contextual Staging Shelf")
         .on_menu_event(|app, event| match event.id.as_ref() {
             "show_hide" => {
-                if let Some(win) = app.get_webview_window("main") {
-                    if win.is_visible().unwrap_or(false) {
-                        let _ = win.hide();
-                    } else {
-                        let _ = win.show();
-                        let _ = win.set_focus();
-                        let _ = win.emit("quickdock://shelf-show", ());
-                    }
+                if SHELF_VISIBLE.load(Ordering::Relaxed) {
+                    do_hide_shelf(app);
+                } else {
+                    do_show_shelf(app);
                 }
             }
             "clear_all" => {
@@ -71,56 +138,50 @@ fn setup_tray(app: &mut tauri::App) -> tauri::Result<()> {
     Ok(())
 }
 
-fn setup_vibrancy(app: &mut tauri::App) {
-    #[cfg(target_os = "windows")]
-    if let Some(window) = app.get_webview_window("main") {
-        use window_vibrancy::{apply_acrylic, apply_mica};
-        if apply_mica(&window, Some(true)).is_err() {
-            let _ = apply_acrylic(&window, Some((18, 18, 18, 180)));
-        }
-    }
-}
-
 fn setup_drag_handlers(app: &mut tauri::App) {
-    // Main window: handle inbound file drops from OS
-    if let Some(window) = app.get_webview_window("main") {
-        let win_clone = window.clone();
-        window.on_window_event(move |event| {
-            match event {
-                tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, position }) => {
-                    let payload = serde_json::json!({
-                        "paths": paths.iter()
-                            .map(|p| p.to_string_lossy().to_string())
-                            .collect::<Vec<_>>(),
-                        "position": { "x": position.x, "y": position.y }
-                    });
-                    let _ = win_clone.emit("quickdock://drop", payload);
-                }
-                tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Enter { .. }) => {
-                    let _ = win_clone.emit("quickdock://drag-enter", ());
-                }
-                tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Leave) => {
-                    let _ = win_clone.emit("quickdock://drag-leave", ());
-                }
-                _ => {}
+    // Backup path: edge window events (secondary to the polling thread)
+    let app_handle = app.handle().clone();
+    if let Some(edge_win) = app.get_webview_window("edge") {
+        edge_win.on_window_event(move |event| match event {
+            tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Enter { .. })
+            | tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Over { .. }) => {
+                do_show_shelf(&app_handle);
             }
+            _ => {}
         });
     }
 
-    // Edge window: slide shelf in when a drag hovers the right-edge strip
-    if let Some(edge_win) = app.get_webview_window("edge") {
-        if let Some(main_win) = app.get_webview_window("main") {
-            edge_win.on_window_event(move |event| {
-                match event {
-                    tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Enter { .. })
-                    | tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Over { .. }) => {
-                        let _ = main_win.show();
-                        let _ = main_win.set_focus();
-                        let _ = main_win.emit("quickdock://shelf-show", ());
-                    }
-                    _ => {}
-                }
-            });
+    // Primary path: poll cursor position so the trigger works regardless of
+    // window hit-testing, WebView2 quirks, or drag-drop registration issues
+    #[cfg(target_os = "windows")]
+    start_drag_edge_poll(app.handle().clone());
+}
+
+#[cfg(target_os = "windows")]
+fn start_drag_edge_poll(app: tauri::AppHandle) {
+    std::thread::spawn(move || {
+        use windows_sys::Win32::Foundation::POINT;
+        use windows_sys::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
+        use windows_sys::Win32::UI::WindowsAndMessaging::{GetCursorPos, GetSystemMetrics};
+
+        loop {
+            std::thread::sleep(std::time::Duration::from_millis(50));
+
+            // VK_LBUTTON (0x01) held = mouse button down = likely a drag
+            if unsafe { GetAsyncKeyState(0x01) } as u16 & 0x8000 == 0 {
+                continue;
+            }
+
+            let mut pt = POINT { x: 0, y: 0 };
+            if unsafe { GetCursorPos(&mut pt) } == 0 {
+                continue;
+            }
+
+            // SM_CXSCREEN (0) = primary monitor width in screen coordinates
+            let screen_w = unsafe { GetSystemMetrics(0) };
+            if pt.x >= screen_w - 30 {
+                do_show_shelf(&app);
+            }
         }
-    }
+    });
 }
