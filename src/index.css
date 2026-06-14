@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  height: 100%;
+  width: 100%;
+}
+
+/* Shiki code blocks rendered as HTML */
+.shiki {
+  background: transparent !important;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-x: auto;
+  padding: 0;
+  margin: 0;
+  white-space: pre;
+}
+
+.shiki code {
+  font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+  background: transparent !important;
+}
+
+/* Thin custom scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.32);
+}
