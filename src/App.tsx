@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
@@ -16,29 +16,8 @@ export default function App() {
   const { addItem, clearAll, updateItem } = useShelfStore();
   useEviction();
 
-  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const hideShelf = useCallback(async () => {
-    if (hideTimer.current) {
-      clearTimeout(hideTimer.current);
-      hideTimer.current = null;
-    }
-    setVisible(false);
-    await new Promise<void>((r) => setTimeout(r, 220));
     await invoke("hide_shelf");
-  }, []);
-
-  // Schedule hide after mouse leaves — cancelled if mouse re-enters
-  const scheduleHide = useCallback(() => {
-    if (hideTimer.current) clearTimeout(hideTimer.current);
-    hideTimer.current = setTimeout(() => void hideShelf(), 600);
-  }, [hideShelf]);
-
-  const cancelHide = useCallback(() => {
-    if (hideTimer.current) {
-      clearTimeout(hideTimer.current);
-      hideTimer.current = null;
-    }
   }, []);
 
   const handleDrop = useCallback(
@@ -95,14 +74,10 @@ export default function App() {
         const p = e.payload;
         if (p.type === "drop") {
           void handleDrop(p.paths);
-          // mouse still over shelf after drop — onMouseLeave handles future hide
         } else if (p.type === "enter") {
-          cancelHide();
           setDropping(true);
         } else if (p.type === "leave") {
-          // drag left without dropping — start hide countdown
           setDropping(false);
-          scheduleHide();
         }
       })
       .then((fn) => {
@@ -111,10 +86,8 @@ export default function App() {
       });
 
     const listeners = [
-      listen("quickdock://shelf-show", () => {
-        cancelHide();
-        setVisible(true);
-      }),
+      listen("quickdock://shelf-show", () => setVisible(true)),
+      listen("quickdock://shelf-hide", () => setVisible(false)),
       listen("quickdock://clear-all", () => clearAll()),
     ];
 
@@ -132,16 +105,11 @@ export default function App() {
       unlistenDragDrop?.();
       listeners.forEach((p) => p.then((f) => f()));
       window.removeEventListener("keydown", onKey);
-      if (hideTimer.current) clearTimeout(hideTimer.current);
     };
-  }, [handleDrop, handlePaste, hideShelf, scheduleHide, cancelHide, clearAll]);
+  }, [handleDrop, handlePaste, hideShelf, clearAll]);
 
   return (
-    <div
-      className="w-full h-screen flex flex-col overflow-hidden bg-transparent"
-      onMouseEnter={cancelHide}
-      onMouseLeave={scheduleHide}
-    >
+    <div className="w-full h-screen flex flex-col overflow-hidden bg-transparent">
       <div
         className={[
           "flex flex-col h-full w-full",
@@ -172,7 +140,7 @@ export default function App() {
 
         {/* Drop-zone indicator */}
         {dropping && (
-          <div className="mx-2 mt-2 rounded-lg border-2 border-dashed border-blue-400/60 bg-blue-400/8 py-3 text-center text-xs text-blue-300/80 flex-shrink-0">
+          <div className="mx-2 mt-2 rounded-lg border-2 border-dashed border-blue-400/60 bg-blue-400/8 py-3 text-center text-xs text-blue-300/80 shrink-0">
             Drop files here
           </div>
         )}
