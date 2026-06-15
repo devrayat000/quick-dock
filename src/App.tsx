@@ -8,7 +8,6 @@ import { SettingsPanel } from "./components/SettingsPanel";
 import { useShelfStore } from "./store/shelf";
 import { useSettingsStore } from "./store/settings";
 import { useEviction } from "./store/eviction";
-import { detectLanguage, highlightCode } from "./lib/highlight";
 
 const appWindow = getCurrentWebviewWindow();
 
@@ -50,17 +49,9 @@ export default function App() {
         addItem({ kind: "url", url: text.trim(), text: text.trim() });
         return;
       }
-      const lang = detectLanguage(text);
-      if (lang) {
-        const id = addItem({ kind: "code", text, language: lang });
-        highlightCode(text, lang).then((highlighted) =>
-          updateItem(id, { highlighted }),
-        );
-      } else {
-        addItem({ kind: "text", text });
-      }
+      addItem({ kind: "text", text });
     } catch (_err) {}
-  }, [addItem, updateItem]);
+  }, [addItem]);
 
   const handleCopy = useCallback(async (text: string) => {
     try {

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { nanoid } from "nanoid";
 
-export type ItemKind = "file" | "image" | "code" | "text" | "url";
+export type ItemKind = "file" | "image" | "text" | "url";
 
 export interface ShelfItem {
   id: string;
@@ -10,8 +10,6 @@ export interface ShelfItem {
   text?: string;
   url?: string;
   thumb?: string;
-  language?: string;
-  highlighted?: string;
   createdAt: number;
 }
 

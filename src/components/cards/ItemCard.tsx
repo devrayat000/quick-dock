@@ -2,7 +2,6 @@ import type { ShelfItem } from "../../store/shelf";
 import { FileCard } from "./FileCard";
 import { ImageCard } from "./ImageCard";
 import { TextCard } from "./TextCard";
-import { CodeCard } from "./CodeCard";
 import { UrlCard } from "./UrlCard";
 
 interface ItemCardProps {
@@ -24,15 +23,6 @@ export function ItemCard({
         <ImageCard
           item={item}
           onRemove={onRemove}
-          onHandleMouseDown={onHandleMouseDown}
-        />
-      );
-    case "code":
-      return (
-        <CodeCard
-          item={item}
-          onRemove={onRemove}
-          onCopy={onCopy}
           onHandleMouseDown={onHandleMouseDown}
         />
       );
