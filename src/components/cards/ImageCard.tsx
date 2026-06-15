@@ -13,7 +13,13 @@ export function ImageCard({ item, onRemove, onHandleMouseDown }: ImageCardProps)
 
   return (
     <CardShell onRemove={onRemove} onHandleMouseDown={onHandleMouseDown}>
-      <div className="flex items-center gap-2.5">
+      <div
+        className="flex items-center gap-2.5 cursor-grab active:cursor-grabbing"
+        onMouseDown={(e) => {
+          if ((e.target as HTMLElement).closest("button")) return;
+          if (item.path) void dragFileOut([item.path]);
+        }}
+      >
         <div className="flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden bg-white/10 border border-white/10">
           {item.thumb ? (
             <img

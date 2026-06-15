@@ -4,7 +4,9 @@ import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { ShelfList } from "./components/ShelfList";
+import { SettingsPanel } from "./components/SettingsPanel";
 import { useShelfStore } from "./store/shelf";
+import { useSettingsStore } from "./store/settings";
 import { useEviction } from "./store/eviction";
 import { detectLanguage, highlightCode } from "./lib/highlight";
 
@@ -13,7 +15,9 @@ const appWindow = getCurrentWebviewWindow();
 export default function App() {
   const [visible, setVisible] = useState(false);
   const [dropping, setDropping] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const { addItem, clearAll, updateItem } = useShelfStore();
+  const { openMode, load: loadSettings } = useSettingsStore();
   useEviction();
 
   const hideShelf = useCallback(async () => {
@@ -67,6 +71,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    void loadSettings();
+
     let cancelDragDrop = false;
     let unlistenDragDrop: (() => void) | undefined;
     appWindow
@@ -106,10 +112,15 @@ export default function App() {
       listeners.forEach((p) => p.then((f) => f()));
       window.removeEventListener("keydown", onKey);
     };
-  }, [handleDrop, handlePaste, hideShelf, clearAll]);
+  }, [handleDrop, handlePaste, hideShelf, clearAll, loadSettings]);
 
   return (
-    <div className="w-full h-screen flex flex-col overflow-hidden bg-transparent">
+    <div className="relative w-full h-screen flex flex-col overflow-hidden bg-transparent">
+      {/* Tab strip — always at left edge in Tab mode, outside slide transform */}
+      {openMode === "tab" && (
+        <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-white/25 rounded-r z-50 pointer-events-none" />
+      )}
+
       <div
         className={[
           "flex flex-col h-full w-full",
@@ -123,6 +134,18 @@ export default function App() {
             QuickDock
           </span>
           <div className="flex gap-1">
+            <button
+              onClick={() => setShowSettings((s) => !s)}
+              className={[
+                "text-xs px-2 py-1 rounded transition-colors",
+                showSettings
+                  ? "text-white/70 bg-white/10"
+                  : "text-white/40 hover:text-white/70 hover:bg-white/10",
+              ].join(" ")}
+              title="Settings"
+            >
+              ⚙
+            </button>
             <button
               onClick={() => clearAll()}
               className="text-xs text-white/40 hover:text-white/70 px-2 py-1 rounded hover:bg-white/10 transition-colors"
@@ -138,28 +161,36 @@ export default function App() {
           </div>
         </div>
 
-        {/* Drop-zone indicator */}
-        {dropping && (
-          <div className="mx-2 mt-2 rounded-lg border-2 border-dashed border-blue-400/60 bg-blue-400/8 py-3 text-center text-xs text-blue-300/80 shrink-0">
-            Drop files here
+        {showSettings ? (
+          <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
+            <SettingsPanel onClose={() => setShowSettings(false)} />
           </div>
+        ) : (
+          <>
+            {/* Drop-zone indicator */}
+            {dropping && (
+              <div className="mx-2 mt-2 rounded-lg border-2 border-dashed border-blue-400/60 bg-blue-400/8 py-3 text-center text-xs text-blue-300/80 shrink-0">
+                Drop files here
+              </div>
+            )}
+
+            {/* Scrollable item list */}
+            <div className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-2 min-h-0">
+              <ShelfList onCopy={handleCopy} />
+            </div>
+
+            {/* Footer paste button */}
+            <div className="px-2 py-2 border-t border-white/10 shrink-0">
+              <button
+                onClick={() => void handlePaste()}
+                className="w-full text-xs text-white/40 hover:text-white/70 py-1.5 rounded hover:bg-white/10 transition-colors flex items-center justify-center gap-1.5"
+              >
+                <span>⌨</span>
+                <span>Paste clipboard (Ctrl+V)</span>
+              </button>
+            </div>
+          </>
         )}
-
-        {/* Scrollable item list */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-2 min-h-0">
-          <ShelfList onCopy={handleCopy} />
-        </div>
-
-        {/* Footer paste button */}
-        <div className="px-2 py-2 border-t border-white/10 shrink-0">
-          <button
-            onClick={() => void handlePaste()}
-            className="w-full text-xs text-white/40 hover:text-white/70 py-1.5 rounded hover:bg-white/10 transition-colors flex items-center justify-center gap-1.5"
-          >
-            <span>⌨</span>
-            <span>Paste clipboard (Ctrl+V)</span>
-          </button>
-        </div>
       </div>
     </div>
   );

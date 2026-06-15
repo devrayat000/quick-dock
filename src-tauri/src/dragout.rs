@@ -1,5 +1,8 @@
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::Manager;
+
+pub static DRAG_OUT_ACTIVE: AtomicBool = AtomicBool::new(false);
 
 #[tauri::command]
 pub async fn start_file_drag(
@@ -12,9 +15,10 @@ pub async fn start_file_drag(
 
     let file_paths: Vec<PathBuf> = paths.iter().map(PathBuf::from).collect();
 
-    tauri::async_runtime::spawn_blocking(move || {
-        // drag::start_drag is blocking; it drives the DoDragDrop message loop
-        // on Windows and returns when the user releases the drag.
+    DRAG_OUT_ACTIVE.store(true, Ordering::Relaxed);
+
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        // start_drag drives the DoDragDrop message loop; blocks until user releases.
         let _ = drag::start_drag(
             &window,
             drag::DragItem::Files(file_paths),
@@ -24,7 +28,9 @@ pub async fn start_file_drag(
         );
     })
     .await
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| e.to_string());
 
-    Ok(())
+    DRAG_OUT_ACTIVE.store(false, Ordering::Relaxed);
+
+    result
 }

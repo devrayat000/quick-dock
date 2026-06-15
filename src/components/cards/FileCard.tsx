@@ -22,7 +22,13 @@ export function FileCard({
 
   return (
     <CardShell onRemove={onRemove} onHandleMouseDown={onHandleMouseDown}>
-      <div className="flex items-center gap-2.5 min-w-0">
+      <div
+        className="flex items-center gap-2.5 min-w-0 cursor-grab active:cursor-grabbing"
+        onMouseDown={(e) => {
+          if ((e.target as HTMLElement).closest("button")) return;
+          if (item.path) void dragFileOut([item.path]);
+        }}
+      >
         <div className="flex-shrink-0 w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center text-[9px] font-bold text-white/50 leading-none tracking-tight">
           {ext || "FILE"}
         </div>
