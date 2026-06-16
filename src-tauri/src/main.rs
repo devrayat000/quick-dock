@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    quick_dock_lib::run()
+    snap_shelf_lib::run()
 }

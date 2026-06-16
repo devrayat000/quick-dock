@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap2="http://schemas.microsoft.com/appx/manifest/uap/windows10/2"
+  xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+  xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap uap2 uap3 uap10 rescap">
+
+  <!-- IDENTITY: these three MUST match your Microsoft Partner Center registration
+       exactly (Partner Center > your app > Product management > Product identity):
+         Name      -> "Package/Identity/Name"
+         Publisher -> "Package/Identity/Publisher"  (the CN=... value)
+       PublisherDisplayName (in <Properties> below) must match too.
+       Version is overwritten at pack time by msix.ps1 from package.json (X.Y.Z.0). -->
+  <Identity
+    Name="zulab.SnapShelf"
+    Publisher="CN=A68081B3-E8B3-48C1-9F88-8EC3690D0963"
+    Version="0.1.0.0" />
+
+  <Properties>
+    <DisplayName>SnapShelf</DisplayName>
+    <PublisherDisplayName>zulab</PublisherDisplayName>
+    <Logo>icons\50x50.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19045.0" MaxVersionTested="10.0.26200.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us"/>
+  </Resources>
+
+  <Applications>
+    <Application Id="snapShelf"
+      Executable="snap-shelf.exe"
+      EntryPoint="Windows.FullTrustApplication"
+      uap10:TrustLevel="mediumIL"
+      uap10:RuntimeBehavior="packagedClassicApp">
+      <uap:VisualElements
+        DisplayName="SnapShelf"
+        Description="SnapShelf is a transparent staging shelf for your Windows desktop."
+        BackgroundColor="#0E0F13"
+        Square150x150Logo="icons\150x150.png"
+        Square44x44Logo="icons\44x44.png">
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

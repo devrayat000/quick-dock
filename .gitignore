@@ -22,3 +22,12 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# MSIX build artifacts
+msix_drop/
+winapp-layout/
+output/
+.winapp/
+
+# Windows SDK packages and generated files
+.winapp

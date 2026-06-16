@@ -110,7 +110,7 @@ fn do_show_shelf(app: &tauri::AppHandle, policy: u8) {
     let _ = win.set_position(tauri::PhysicalPosition::new(shelf_x(), shelf_y()));
     CLOSE_POLICY.store(policy, Ordering::Relaxed);
     SHELF_VISIBLE.store(true, Ordering::Relaxed);
-    let _ = win.emit("quickdock://shelf-show", ());
+    let _ = win.emit("snapshelf://shelf-show", ());
     if policy == CP_BLUR {
         let _ = win.set_focus();
     }
@@ -126,7 +126,7 @@ fn do_hide_shelf(app: &tauri::AppHandle) {
     CLOSE_POLICY.store(CP_CURSOR_PARK, Ordering::Relaxed);
 
     if let Some(win) = app.get_webview_window("main") {
-        let _ = win.emit("quickdock://shelf-hide", ());
+        let _ = win.emit("snapshelf://shelf-hide", ());
         let win_clone = win.clone();
         // Tab collapse → sliver; everything else → off-screen park
         let (park_x, park_y) = if policy == CP_CURSOR_SLIVER {
@@ -237,13 +237,13 @@ pub fn run() {
 fn setup_tray(app: &mut tauri::App) -> tauri::Result<()> {
     let show_hide = MenuItem::with_id(app, "show_hide", "Show / Hide Shelf", true, None::<&str>)?;
     let clear_all = MenuItem::with_id(app, "clear_all", "Clear All Items", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit QuickDock", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit SnapShelf", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show_hide, &clear_all, &quit])?;
 
     TrayIconBuilder::new()
         .icon(app.default_window_icon().unwrap().clone())
         .menu(&menu)
-        .tooltip("QuickDock – Contextual Staging Shelf")
+        .tooltip("SnapShelf – Contextual Staging Shelf")
         .on_menu_event(|app, event| match event.id.as_ref() {
             "show_hide" => {
                 if SHELF_VISIBLE.load(Ordering::Relaxed) {
@@ -261,7 +261,7 @@ fn setup_tray(app: &mut tauri::App) -> tauri::Result<()> {
             }
             "clear_all" => {
                 if let Some(win) = app.get_webview_window("main") {
-                    let _ = win.emit("quickdock://clear-all", ());
+                    let _ = win.emit("snapshelf://clear-all", ());
                 }
             }
             "quit" => app.exit(0),

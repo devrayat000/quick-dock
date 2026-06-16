@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "QuickDock",
+  "productName": "SnapShelf",
   "version": "0.1.0",
-  "identifier": "dev.rayat.quick-dock",
+  "identifier": "dev.rayat.snap-shelf",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "QuickDock",
+        "title": "SnapShelf",
         "width": 340,
         "height": 700,
         "x": -10000,
@@ -38,19 +38,18 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": "all",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
-      "icons/128x128@2x.png",
+      "icons/256x256.png",
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "publisher": "Zul Ikram Musaddik Rayat",
+    "publisher": "zulab",
     "windows": {
-      "nsis": {
-        "languages": ["English"],
-        "displayLanguageSelector": false
+      "webviewInstallMode": {
+        "type": "skip"
       }
     }
   }

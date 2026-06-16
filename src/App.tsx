@@ -83,9 +83,9 @@ export default function App() {
       });
 
     const listeners = [
-      listen("quickdock://shelf-show", () => setVisible(true)),
-      listen("quickdock://shelf-hide", () => setVisible(false)),
-      listen("quickdock://clear-all", () => clearAll()),
+      listen("snapshelf://shelf-show", () => setVisible(true)),
+      listen("snapshelf://shelf-hide", () => setVisible(false)),
+      listen("snapshelf://clear-all", () => clearAll()),
     ];
 
     const onKey = (e: KeyboardEvent) => {
@@ -122,7 +122,7 @@ export default function App() {
         {/* Header */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-white/10 shrink-0">
           <span className="text-sm font-semibold text-white/80 tracking-wide">
-            QuickDock
+            SnapShelf
           </span>
           <div className="flex gap-1">
             <button
