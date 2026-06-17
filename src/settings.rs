@@ -18,6 +18,14 @@ pub fn mode_to_u8(mode: &str) -> u8 {
     }
 }
 
+/// %APPDATA%\SnapShelf (replaces Tauri's app_config_dir). Falls back to the temp dir.
+pub fn config_dir() -> std::path::PathBuf {
+    std::env::var_os("APPDATA")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir)
+        .join("SnapShelf")
+}
+
 pub fn load(config_dir: &std::path::Path) -> Settings {
     std::fs::read_to_string(config_dir.join("settings.json"))
         .ok()

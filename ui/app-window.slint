@@ -1,17 +1,656 @@
-import { Button, VerticalBox } from "std-widgets.slint";
+// SnapShelf UI — Slint port of the original React/Tailwind shelf.
+// Visual reference: src-js/ (App.tsx, components/*). Window 340x700, transparent,
+// window-level Acrylic applied from Rust. Colors are white/blue with alpha to match Tailwind.
 
-export component AppWindow inherits Window {
-    in-out property <int> counter: 42;
-    callback request-increase-value();
-    VerticalBox {
+export struct ShelfItemData {
+    id: int,
+    kind: string,        // "file" | "image" | "text" | "url"
+    path: string,
+    text: string,        // full text body (for copy)
+    url: string,
+    thumb: image,
+    has-thumb: bool,
+    display: string,     // url display / text preview
+    ext: string,         // file-type badge
+    filename: string,
+    truncated: bool,     // text preview was cut
+}
+
+// Small text button with hover background (matches the .text-[10px] action buttons).
+component TxtButton inherits Rectangle {
+    in property <string> label;
+    in property <length> text-size: 10px;
+    callback clicked;
+    border-radius: 4px;
+    background: touch.has-hover ? rgba(255, 255, 255, 0.1) : transparent;
+    width: lbl.preferred-width + 16px;
+    height: lbl.preferred-height + 4px;
+    lbl := Text {
+        text: root.label;
+        font-size: root.text-size;
+        color: touch.has-hover ? rgba(255, 255, 255, 0.75) : rgba(255, 255, 255, 0.4);
+        vertical-alignment: center;
+        horizontal-alignment: center;
+    }
+    touch := TouchArea {
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+// Card shell: rounded-xl, white border, ~8% fill (compensates for no per-card blur),
+// drag handle (left), remove button (top-right, on hover). Content injected by callers.
+component CardShell inherits Rectangle {
+    in property <int> item-id;
+    in property <length> content-height;
+    callback remove();
+    callback handle-pressed(length);   // absolute y where the handle drag began
+    callback handle-moved(length);     // current absolute y
+    callback handle-released();
+    border-radius: 12px;
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.08);
+    height: content-height + 20px;     // pt-2.5 + pb-2.5 = 20px
+
+    // Bottom layer: hover detector for the whole card (children stack above).
+    card-hover := TouchArea {
+        x: 0; y: 0; width: parent.width; height: parent.height;
+    }
+
+    @children
+
+    // Top layer: ⠿ reorder handle (left, vertically centered).
+    handle := Text {
+        text: "⠿";
+        font-size: 14px;
+        x: 6px;
+        y: (parent.height - self.height) / 2;
+        color: handle-touch.has-hover ? rgba(255, 255, 255, 0.5) : rgba(255, 255, 255, 0.2);
+    }
+    handle-touch := TouchArea {
+        x: 0; y: 0;
+        width: 20px; height: parent.height;
+        mouse-cursor: grab;
+        moved => {
+            root.handle-moved(self.absolute-position.y + self.mouse-y);
+        }
+        pointer-event(ev) => {
+            if (ev.button == PointerEventButton.left && ev.kind == PointerEventKind.down) {
+                root.handle-pressed(self.absolute-position.y + self.mouse-y);
+            }
+            if (ev.button == PointerEventButton.left && ev.kind == PointerEventKind.up) {
+                root.handle-released();
+            }
+        }
+    }
+
+    // Top layer: ✕ remove (appears on card hover).
+    remove-btn := Rectangle {
+        x: parent.width - self.width - 6px;
+        y: 6px;
+        width: 16px; height: 16px;
+        border-radius: 4px;
+        background: rm-touch.has-hover ? rgba(255, 255, 255, 0.1) : transparent;
+        opacity: card-hover.has-hover ? 1.0 : 0.0;
+        animate opacity { duration: 120ms; }
         Text {
-            text: "Counter: \{root.counter}";
+            text: "✕";
+            font-size: 10px;
+            color: rm-touch.has-hover ? rgba(255, 255, 255, 0.8) : rgba(255, 255, 255, 0.2);
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+        rm-touch := TouchArea {
+            clicked => {
+                root.remove();
+            }
+        }
+    }
+}
+
+// --- Settings: one selectable mode row ----------------------------------------
+component ModeRow inherits Rectangle {
+    in property <string> mode-id;
+    in property <string> label;
+    in property <string> desc;
+    in property <bool> selected;
+    callback pick();
+    border-radius: 8px;
+    border-width: 1px;
+    border-color: selected ? rgba(96, 165, 250, 0.4) : rgba(255, 255, 255, 0.06);
+    background: selected ? rgba(96, 165, 250, 0.1)
+        : (touch.has-hover ? rgba(255, 255, 255, 0.06) : rgba(255, 255, 255, 0.03));
+    height: lay.preferred-height + 16px;
+    touch := TouchArea {
+        clicked => {
+            root.pick();
+        }
+    }
+    lay := HorizontalLayout {
+        x: 10px; y: 8px;
+        width: parent.width - 20px;
+        spacing: 10px;
+        Rectangle {
+            width: 12px; height: 12px;
+            y: 2px;
+            border-radius: 6px;
+            border-width: 2px;
+            border-color: selected ? rgb(96, 165, 250) : rgba(255, 255, 255, 0.3);
+            background: selected ? rgb(96, 165, 250) : transparent;
+            vertical-stretch: 0;
+        }
+        VerticalLayout {
+            spacing: 2px;
+            horizontal-stretch: 1;
+            Text {
+                text: root.label;
+                font-size: 12px;
+                font-weight: 500;
+                color: rgba(255, 255, 255, 0.8);
+                wrap: word-wrap;
+            }
+            Text {
+                text: root.desc;
+                font-size: 10px;
+                color: rgba(255, 255, 255, 0.4);
+                wrap: word-wrap;
+            }
+        }
+    }
+}
+
+component SettingsPanel inherits Rectangle {
+    in property <string> open-mode;
+    callback pick(string);
+    callback done();
+    VerticalLayout {
+        padding-left: 12px; padding-right: 12px;
+        padding-top: 8px; padding-bottom: 12px;
+        spacing: 6px;
+        alignment: start;
+        HorizontalLayout {
+            Text {
+                text: "OPEN MODE";
+                font-size: 10px;
+                font-weight: 600;
+                color: rgba(255, 255, 255, 0.4);
+                letter-spacing: 0.5px;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+            }
+            TxtButton {
+                label: "done";
+                text-size: 10px;
+                clicked => {
+                    root.done();
+                }
+            }
+        }
+        ModeRow {
+            mode-id: "hover";
+            label: "Hover Peek";
+            desc: "Slide cursor to screen edge — shelf peeks out, closes when you leave.";
+            selected: root.open-mode == "hover";
+            pick => {
+                root.pick("hover");
+            }
+        }
+        ModeRow {
+            mode-id: "tab";
+            label: "Tab Strip";
+            desc: "Thin strip stays at edge. Hover to expand, leave to collapse.";
+            selected: root.open-mode == "tab";
+            pick => {
+                root.pick("tab");
+            }
+        }
+        ModeRow {
+            mode-id: "tray";
+            label: "Tray + Auto-hide";
+            desc: "Open from tray icon. Closes when you click another window.";
+            selected: root.open-mode == "tray";
+            pick => {
+                root.pick("tray");
+            }
+        }
+    }
+}
+
+// --- Item card: dispatches by kind --------------------------------------------
+component ItemCard inherits CardShell {
+    in property <ShelfItemData> data;
+    callback copy-text(string);
+    callback open-url(string);
+    callback drag-out(string);
+
+    item-id: data.id;
+    content-height: body.preferred-height;
+
+    body := VerticalLayout {
+        x: 16px; y: 10px;
+        width: parent.width - 22px;
+
+        // FILE
+        if data.kind == "file": VerticalLayout {
+            spacing: 8px;
+            file-body := TouchArea {
+                mouse-cursor: grab;
+                height: self.preferred-height;
+                clicked => {
+                    root.drag-out(data.path);
+                }
+                HorizontalLayout {
+                    spacing: 10px;
+                    Rectangle {
+                        width: 36px; height: 36px;
+                        border-radius: 8px;
+                        background: rgba(255, 255, 255, 0.1);
+                        Text {
+                            text: data.ext == "" ? "FILE" : data.ext;
+                            font-size: 9px;
+                            font-weight: 700;
+                            color: rgba(255, 255, 255, 0.5);
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                    VerticalLayout {
+                        spacing: 2px;
+                        horizontal-stretch: 1;
+                        Text {
+                            text: data.filename;
+                            font-size: 12px;
+                            font-weight: 500;
+                            color: rgba(255, 255, 255, 0.8);
+                            overflow: elide;
+                        }
+                        Text {
+                            text: data.path;
+                            font-size: 10px;
+                            color: rgba(255, 255, 255, 0.35);
+                            overflow: elide;
+                        }
+                    }
+                }
+            }
+            HorizontalLayout {
+                spacing: 4px;
+                alignment: start;
+                TxtButton {
+                    label: "Copy path";
+                    clicked => {
+                        root.copy-text(data.path);
+                    }
+                }
+                TxtButton {
+                    label: "Drag out ↗";
+                    clicked => {
+                        root.drag-out(data.path);
+                    }
+                }
+            }
         }
 
-        Button {
-            text: "Increase value";
-            clicked => {
-                root.request-increase-value();
+        // IMAGE
+        if data.kind == "image": HorizontalLayout {
+            spacing: 10px;
+            img-touch := TouchArea {
+                width: 56px; height: 56px;
+                mouse-cursor: grab;
+                clicked => {
+                    root.drag-out(data.path);
+                }
+                Rectangle {
+                    border-radius: 8px;
+                    border-width: 1px;
+                    border-color: rgba(255, 255, 255, 0.1);
+                    background: rgba(255, 255, 255, 0.1);
+                    clip: true;
+                    if data.has-thumb: Image {
+                        source: data.thumb;
+                        width: parent.width; height: parent.height;
+                        image-fit: cover;
+                    }
+                    if !data.has-thumb: Text {
+                        text: "🖼";
+                        font-size: 24px;
+                        color: rgba(255, 255, 255, 0.25);
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+            VerticalLayout {
+                spacing: 6px;
+                horizontal-stretch: 1;
+                Text {
+                    text: data.filename;
+                    font-size: 12px;
+                    font-weight: 500;
+                    color: rgba(255, 255, 255, 0.8);
+                    overflow: elide;
+                }
+                HorizontalLayout {
+                    alignment: start;
+                    TxtButton {
+                        label: "Drag out ↗";
+                        clicked => {
+                            root.drag-out(data.path);
+                        }
+                    }
+                }
+            }
+        }
+
+        // TEXT
+        if data.kind == "text": VerticalLayout {
+            spacing: 8px;
+            Text {
+                text: data.truncated ? data.display + "…" : data.display;
+                font-size: 12px;
+                color: rgba(255, 255, 255, 0.7);
+                wrap: word-wrap;
+            }
+            HorizontalLayout {
+                alignment: start;
+                TxtButton {
+                    label: "Copy";
+                    clicked => {
+                        root.copy-text(data.text);
+                    }
+                }
+            }
+        }
+
+        // URL
+        if data.kind == "url": VerticalLayout {
+            spacing: 8px;
+            HorizontalLayout {
+                spacing: 8px;
+                Text {
+                    text: "🔗";
+                    font-size: 14px;
+                    color: rgba(255, 255, 255, 0.4);
+                }
+                Text {
+                    text: data.display;
+                    font-size: 12px;
+                    color: rgba(147, 197, 253, 0.8);
+                    overflow: elide;
+                    horizontal-stretch: 1;
+                }
+            }
+            HorizontalLayout {
+                spacing: 4px;
+                alignment: start;
+                TxtButton {
+                    label: "Open";
+                    clicked => {
+                        root.open-url(data.url);
+                    }
+                }
+                TxtButton {
+                    label: "Copy";
+                    clicked => {
+                        root.copy-text(data.url);
+                    }
+                }
+            }
+        }
+    }
+}
+
+export component AppWindow inherits Window {
+    in property <bool> shelf-visible;
+    in property <bool> dropping;
+    in property <string> open-mode;
+    in property <[ShelfItemData]> items;
+
+    callback request-hide();
+    callback clear-all();
+    callback set-open-mode(string);
+    callback remove-item(int);
+    callback reorder-item(int, int);
+    callback copy-text(string);
+    callback open-url(string);
+    callback drag-out(string);
+    callback paste-clipboard();
+
+    // local UI state
+    property <bool> settings-open: false;
+    property <int> drag-index: -1;
+    property <length> drag-start-y;
+    property <length> drag-cur-y;
+
+    title: "SnapShelf";
+    background: transparent;
+    preferred-width: 340px;
+    preferred-height: 700px;
+    forward-focus: keys;
+
+    // Compute the reorder target index from drag delta (card est height 86px), clamped.
+    pure function target-index(from: int, delta: length) -> int {
+        return Math.max(0, Math.min(root.items.length - 1,
+            from + Math.round(delta / 86px)));
+    }
+
+    keys := FocusScope {
+        key-pressed(ev) => {
+            if (ev.text == Key.Escape) {
+                root.request-hide();
+                return accept;
+            }
+            if (ev.text == "v" && ev.modifiers.control) {
+                root.paste-clipboard();
+                return accept;
+            }
+            return reject;
+        }
+    }
+
+    // Tab strip — pinned to the left edge in Tab mode, outside the slide transform.
+    if root.open-mode == "tab": Rectangle {
+        x: 0; y: 0;
+        width: 6px; height: parent.height;
+        background: rgba(255, 255, 255, 0.25);
+        border-top-right-radius: 4px;
+        border-bottom-right-radius: 4px;
+    }
+
+    // Sliding container (translate-x-full when hidden).
+    slide := Rectangle {
+        width: parent.width;
+        height: parent.height;
+        x: root.shelf-visible ? 0px : parent.width;
+        animate x { duration: 200ms; easing: ease-out; }
+
+        VerticalLayout {
+            // Header
+            Rectangle {
+                height: 37px;
+                HorizontalLayout {
+                    padding-left: 12px; padding-right: 12px;
+                    padding-top: 8px; padding-bottom: 8px;
+                    spacing: 4px;
+                    Text {
+                        text: "SnapShelf";
+                        font-size: 14px;
+                        font-weight: 600;
+                        color: rgba(255, 255, 255, 0.8);
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                    }
+                    TxtButton {
+                        label: "⚙";
+                        text-size: 12px;
+                        clicked => {
+                            root.settings-open = !root.settings-open;
+                        }
+                    }
+                    TxtButton {
+                        label: "Clear";
+                        text-size: 12px;
+                        clicked => {
+                            root.clear-all();
+                        }
+                    }
+                    TxtButton {
+                        label: "✕";
+                        text-size: 12px;
+                        clicked => {
+                            root.request-hide();
+                        }
+                    }
+                }
+                Rectangle {
+                    y: parent.height - 1px;
+                    height: 1px;
+                    background: rgba(255, 255, 255, 0.1);
+                }
+            }
+
+            if root.settings-open: SettingsPanel {
+                open-mode: root.open-mode;
+                vertical-stretch: 1;
+                pick(m) => {
+                    root.set-open-mode(m);
+                }
+                done => {
+                    root.settings-open = false;
+                }
+            }
+
+            if !root.settings-open: VerticalLayout {
+                vertical-stretch: 1;
+
+                // Drop zone indicator
+                if root.dropping: Rectangle {
+                    height: 44px;
+                    Rectangle {
+                        x: 8px; width: parent.width - 16px;
+                        y: 8px; height: parent.height - 8px;
+                        border-radius: 8px;
+                        border-width: 2px;
+                        border-color: rgba(96, 165, 250, 0.6);
+                        background: rgba(96, 165, 250, 0.08);
+                        Text {
+                            text: "Drop files here";
+                            font-size: 12px;
+                            color: rgba(147, 197, 253, 0.8);
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+
+                // Scrollable item list
+                Flickable {
+                    vertical-stretch: 1;
+                    viewport-height: list.preferred-height;
+                    list := VerticalLayout {
+                        padding: 8px;
+                        spacing: 8px;
+                        alignment: start;
+
+                        if root.items.length == 0: Rectangle {
+                            height: 180px;
+                            VerticalLayout {
+                                alignment: center;
+                                spacing: 12px;
+                                Text {
+                                    text: "📦";
+                                    font-size: 36px;
+                                    opacity: 0.6;
+                                    horizontal-alignment: center;
+                                }
+                                Text {
+                                    text: "Shelf is empty";
+                                    font-size: 12px;
+                                    font-weight: 500;
+                                    color: rgba(255, 255, 255, 0.25);
+                                    horizontal-alignment: center;
+                                }
+                                Text {
+                                    text: "Drag files here, paste text,\nor hover the screen edge while dragging";
+                                    font-size: 12px;
+                                    color: rgba(255, 255, 255, 0.2);
+                                    horizontal-alignment: center;
+                                }
+                            }
+                        }
+
+                        for item[idx] in root.items: ItemCard {
+                            data: item;
+                            opacity: root.drag-index == idx ? 0.88 : 1.0;
+                            copy-text(t) => {
+                                root.copy-text(t);
+                            }
+                            open-url(u) => {
+                                root.open-url(u);
+                            }
+                            drag-out(p) => {
+                                root.drag-out(p);
+                            }
+                            remove => {
+                                root.remove-item(item.id);
+                            }
+                            handle-pressed(y) => {
+                                root.drag-index = idx;
+                                root.drag-start-y = y;
+                                root.drag-cur-y = y;
+                            }
+                            handle-moved(y) => {
+                                root.drag-cur-y = y;
+                            }
+                            handle-released => {
+                                if (root.drag-index >= 0) {
+                                    root.reorder-item(root.drag-index,
+                                        root.target-index(root.drag-index,
+                                            root.drag-cur-y - root.drag-start-y));
+                                    root.drag-index = -1;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Footer paste button
+                Rectangle {
+                    height: 37px;
+                    Rectangle {
+                        y: 0; height: 1px;
+                        background: rgba(255, 255, 255, 0.1);
+                    }
+                    paste-btn := Rectangle {
+                        x: 8px; y: 8px;
+                        width: parent.width - 16px; height: parent.height - 16px;
+                        border-radius: 4px;
+                        background: paste-touch.has-hover ? rgba(255, 255, 255, 0.1) : transparent;
+                        HorizontalLayout {
+                            alignment: center;
+                            spacing: 6px;
+                            Text {
+                                text: "⌨";
+                                font-size: 12px;
+                                color: paste-touch.has-hover ? rgba(255, 255, 255, 0.7) : rgba(255, 255, 255, 0.4);
+                                vertical-alignment: center;
+                            }
+                            Text {
+                                text: "Paste clipboard (Ctrl+V)";
+                                font-size: 12px;
+                                color: paste-touch.has-hover ? rgba(255, 255, 255, 0.7) : rgba(255, 255, 255, 0.4);
+                                vertical-alignment: center;
+                            }
+                        }
+                        paste-touch := TouchArea {
+                            clicked => {
+                                root.paste-clipboard();
+                            }
+                        }
+                    }
+                }
             }
         }
     }

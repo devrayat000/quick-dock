@@ -1,36 +1,52 @@
+// Native drag-OUT via the `drag` crate (DoDragDrop) on the Slint window's raw HWND.
+// No Tauri: we build a small Send wrapper exposing the HWND through raw-window-handle.
+
+use std::num::NonZeroIsize;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-use tauri::Manager;
 
+use raw_window_handle::{
+    DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, RawDisplayHandle,
+    RawWindowHandle, Win32WindowHandle, WindowHandle, WindowsDisplayHandle,
+};
+
+/// Set true for the duration of an OLE drag-out so the edge poll does not auto-close mid-drag.
 pub static DRAG_OUT_ACTIVE: AtomicBool = AtomicBool::new(false);
 
-#[tauri::command]
-pub async fn start_file_drag(
-    app: tauri::AppHandle,
-    paths: Vec<String>,
-) -> Result<(), String> {
-    let window = app
-        .get_webview_window("main")
-        .ok_or_else(|| "main window not found".to_string())?;
+/// Minimal Send-able window handle wrapping a raw Win32 HWND.
+struct HwndHandle(isize);
+unsafe impl Send for HwndHandle {}
 
+impl HasWindowHandle for HwndHandle {
+    fn window_handle(&self) -> Result<WindowHandle<'_>, HandleError> {
+        let hwnd = NonZeroIsize::new(self.0).ok_or(HandleError::Unavailable)?;
+        let handle = Win32WindowHandle::new(hwnd);
+        // SAFETY: the HWND is valid for the lifetime of the app window.
+        Ok(unsafe { WindowHandle::borrow_raw(RawWindowHandle::Win32(handle)) })
+    }
+}
+
+impl HasDisplayHandle for HwndHandle {
+    fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
+        // SAFETY: Windows has a single implicit display handle.
+        Ok(unsafe { DisplayHandle::borrow_raw(RawDisplayHandle::Windows(WindowsDisplayHandle::new())) })
+    }
+}
+
+/// Start an OS file drag of `paths` from the given HWND. Runs on a background thread
+/// (start_drag drives the blocking DoDragDrop loop) and self-clears DRAG_OUT_ACTIVE.
+pub fn start_file_drag(hwnd: isize, paths: Vec<String>) {
     let file_paths: Vec<PathBuf> = paths.iter().map(PathBuf::from).collect();
-
-    DRAG_OUT_ACTIVE.store(true, Ordering::Relaxed);
-
-    let result = tauri::async_runtime::spawn_blocking(move || {
-        // start_drag drives the DoDragDrop message loop; blocks until user releases.
+    std::thread::spawn(move || {
+        DRAG_OUT_ACTIVE.store(true, Ordering::Relaxed);
+        let handle = HwndHandle(hwnd);
         let _ = drag::start_drag(
-            &window,
+            &handle,
             drag::DragItem::Files(file_paths),
             drag::Image::Raw(vec![]),
             |_result, _cursor| {},
             drag::Options::default(),
         );
-    })
-    .await
-    .map_err(|e| e.to_string());
-
-    DRAG_OUT_ACTIVE.store(false, Ordering::Relaxed);
-
-    result
+        DRAG_OUT_ACTIVE.store(false, Ordering::Relaxed);
+    });
 }

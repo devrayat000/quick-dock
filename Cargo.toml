@@ -1,30 +1,23 @@
 [package]
 name = "snap-shelf"
 version = "1.0.0"
-description = "A Tauri App"
+description = "SnapShelf — a transparent staging shelf for Windows"
 authors = ["zulab"]
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[lib]
-# The `_lib` suffix may seem redundant but it is necessary
-# to make the lib name unique and wouldn't conflict with the bin name.
-# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
-name = "snap_shelf_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
-
 [build-dependencies]
-slint-build = "1.14.1"
+slint-build = "1.16.1"
 
 [dependencies]
-slint = "1.14.1"
+slint = { version = "1.16.1", default-features = false, features = ["backend-winit", "renderer-software", "compat-1-2", "std", "unstable-winit-030"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 window-vibrancy = "0.7.1"
 image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "webp", "gif"] }
 drag = "2.1.1"
-windows-sys = { version = "0.61.2", features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation", "Win32_UI_Input_KeyboardAndMouse"] }
+windows-sys = { version = "0.61.2", features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation", "Win32_UI_Input_KeyboardAndMouse", "Win32_System_DataExchange", "Win32_System_Memory", "Win32_System_Ole", "Win32_UI_Shell", "Win32_Globalization"] }
+tray-icon = "0.24.1"
+raw-window-handle = "0.6.2"
 
 [profile.release]
 opt-level = "s"     # optimize for size
