@@ -6,8 +6,9 @@
   xmlns:uap2="http://schemas.microsoft.com/appx/manifest/uap/windows10/2"
   xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
   xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  IgnorableNamespaces="uap uap2 uap3 uap10 rescap">
+  IgnorableNamespaces="uap uap2 uap3 uap10 desktop rescap">
 
   <!-- IDENTITY: these three MUST match your Microsoft Partner Center registration
        exactly (Partner Center > your app > Product management > Product identity):
@@ -18,7 +19,7 @@
   <Identity
     Name="zulab.SnapShelf"
     Publisher="CN=A68081B3-E8B3-48C1-9F88-8EC3690D0963"
-    Version="0.1.0.0" />
+    Version="0.2.0.0" />
 
   <Properties>
     <DisplayName>SnapShelf</DisplayName>
@@ -47,6 +48,23 @@
         Square150x150Logo="icons\150x150.png"
         Square44x44Logo="icons\44x44.png">
       </uap:VisualElements>
+
+      <!-- Launch at login. Packaged (Store) identity ignores the registry Run key the
+           autostart plugin writes, so the Store build declares a startup task instead.
+           The shelf parks off-screen at startup, so login launch is silent. Ships ENABLED
+           (the app's value is being ambient/always-available); the user can disable it from
+           Task Manager > Startup or Windows Settings > Apps > Startup. -->
+      <Extensions>
+        <desktop:Extension
+          Category="windows.startupTask"
+          Executable="snap-shelf.exe"
+          EntryPoint="Windows.FullTrustApplication">
+          <desktop:StartupTask
+            TaskId="SnapShelfStartup"
+            Enabled="true"
+            DisplayName="SnapShelf" />
+        </desktop:Extension>
+      </Extensions>
     </Application>
   </Applications>
 
