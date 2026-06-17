@@ -1,8 +1,8 @@
 [package]
 name = "snap-shelf"
-version = "0.2.0"
+version = "1.0.0"
 description = "A Tauri App"
-authors = ["you"]
+authors = ["zulab"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -15,14 +15,12 @@ name = "snap_shelf_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+slint-build = "1.14.1"
 
 [dependencies]
-tauri = { version = "2", features = ["protocol-asset", "tray-icon"] }
-tauri-plugin-opener = "2"
+slint = "1.14.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tauri-plugin-clipboard-manager = "2"
 window-vibrancy = "0.7.1"
 image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "webp", "gif"] }
 drag = "2.1.1"
