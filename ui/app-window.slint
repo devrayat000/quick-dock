@@ -249,8 +249,11 @@ component ItemCard inherits CardShell {
             file-body := TouchArea {
                 mouse-cursor: grab;
                 height: self.preferred-height;
-                clicked => {
-                    root.drag-out(data.path);
+                // Start the OS drag on press (DoDragDrop needs the button still held).
+                pointer-event(ev) => {
+                    if (ev.button == PointerEventButton.left && ev.kind == PointerEventKind.down) {
+                        root.drag-out(data.path);
+                    }
                 }
                 HorizontalLayout {
                     spacing: 10px;
@@ -310,8 +313,10 @@ component ItemCard inherits CardShell {
             img-touch := TouchArea {
                 width: 56px; height: 56px;
                 mouse-cursor: grab;
-                clicked => {
-                    root.drag-out(data.path);
+                pointer-event(ev) => {
+                    if (ev.button == PointerEventButton.left && ev.kind == PointerEventKind.down) {
+                        root.drag-out(data.path);
+                    }
                 }
                 Rectangle {
                     border-radius: 8px;
@@ -626,7 +631,9 @@ export component AppWindow inherits Window {
 
                         for item[idx] in root.items: ItemCard {
                             data: item;
-                            opacity: root.drag-index == idx ? 0.88 : 1.0;
+                            // Dragged card leaves a faint placeholder gap; the floating ghost
+                            // (rendered at window level) follows the cursor.
+                            opacity: root.drag-index == idx ? 0.25 : 1.0;
                             copy-text(t) => {
                                 root.copy-text(t);
                             }
@@ -661,7 +668,7 @@ export component AppWindow inherits Window {
 
                 // Footer paste button
                 Rectangle {
-                    height: 37px;
+                    height: 40px;
                     Rectangle {
                         y: 0; height: 1px;
                         background: rgba(255, 255, 255, 0.1);
@@ -674,17 +681,23 @@ export component AppWindow inherits Window {
                         HorizontalLayout {
                             alignment: center;
                             spacing: 6px;
-                            IconDisplay {
-                                icon: IconSet.Clipboard;
-                                size: 13px;
-                                stroke-width: 2;
-                                stroke: paste-touch.has-hover ? rgba(255, 255, 255, 0.7) : rgba(255, 255, 255, 0.4);
+                            // Wrap each child so it is vertically centered against the other.
+                            VerticalLayout {
+                                alignment: center;
+                                IconDisplay {
+                                    icon: IconSet.Clipboard;
+                                    size: 13px;
+                                    stroke-width: 2;
+                                    stroke: paste-touch.has-hover ? rgba(255, 255, 255, 0.7) : rgba(255, 255, 255, 0.4);
+                                }
                             }
-                            Text {
-                                text: "Paste clipboard (Ctrl+V)";
-                                font-size: 12px;
-                                color: paste-touch.has-hover ? rgba(255, 255, 255, 0.7) : rgba(255, 255, 255, 0.4);
-                                vertical-alignment: center;
+                            VerticalLayout {
+                                alignment: center;
+                                Text {
+                                    text: "Paste clipboard (Ctrl+V)";
+                                    font-size: 12px;
+                                    color: paste-touch.has-hover ? rgba(255, 255, 255, 0.7) : rgba(255, 255, 255, 0.4);
+                                }
                             }
                         }
                         paste-touch := TouchArea {
@@ -696,5 +709,18 @@ export component AppWindow inherits Window {
                 }
             }
         }
+    }
+
+    // Floating drag ghost — a copy of the dragged card that follows the cursor while reordering.
+    if root.drag-index >= 0 && root.shelf-visible: ItemCard {
+        x: 8px;
+        width: parent.width - 16px;
+        y: root.drag-cur-y - 30px;
+        data: root.items[root.drag-index];
+        opacity: 0.95;
+        drop-shadow-blur: 14px;
+        drop-shadow-color: rgba(0, 0, 0, 0.45);
+        drop-shadow-offset-y: 5px;
+        animate y { duration: 50ms; easing: ease-out; }
     }
 }

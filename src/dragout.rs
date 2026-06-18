@@ -37,16 +37,27 @@ impl HasDisplayHandle for HwndHandle {
 /// (start_drag drives the blocking DoDragDrop loop) and self-clears DRAG_OUT_ACTIVE.
 pub fn start_file_drag(hwnd: isize, paths: Vec<String>) {
     let file_paths: Vec<PathBuf> = paths.iter().map(PathBuf::from).collect();
+    let exist: Vec<bool> = file_paths.iter().map(|p| p.exists()).collect();
+    eprintln!(
+        "[drag-out] start_file_drag hwnd={:#x} paths={:?} exists={:?}",
+        hwnd, file_paths, exist
+    );
     std::thread::spawn(move || {
         DRAG_OUT_ACTIVE.store(true, Ordering::Relaxed);
         let handle = HwndHandle(hwnd);
-        let _ = drag::start_drag(
+        let result = drag::start_drag(
             &handle,
             drag::DragItem::Files(file_paths),
             drag::Image::Raw(vec![]),
-            |_result, _cursor| {},
+            |result, _cursor| {
+                eprintln!("[drag-out] on_drop callback: {:?}", result);
+            },
             drag::Options::default(),
         );
+        match &result {
+            Ok(_) => eprintln!("[drag-out] DoDragDrop returned Ok"),
+            Err(e) => eprintln!("[drag-out] start_drag ERROR: {:?}", e),
+        }
         DRAG_OUT_ACTIVE.store(false, Ordering::Relaxed);
     });
 }

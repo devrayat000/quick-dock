@@ -368,8 +368,11 @@ fn wire_callbacks(ui: &AppWindow) {
     ui.on_open_url(|u| sys::open_url(&u));
     ui.on_drag_out(|p| {
         let hwnd = HWND.load(Ordering::Relaxed);
+        eprintln!("[drag-out] callback fired: path={:?} hwnd={:#x}", p.as_str(), hwnd);
         if hwnd != 0 {
             dragout::start_file_drag(hwnd, vec![p.to_string()]);
+        } else {
+            eprintln!("[drag-out] HWND is 0 — aborting");
         }
     });
     ui.on_paste_clipboard(|| paste_clipboard());
