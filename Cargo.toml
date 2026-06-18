@@ -8,6 +8,7 @@ edition = "2021"
 [build-dependencies]
 lucide-slint = "1.20.0"
 slint-build = "1.16.1"
+winresource = "0.1.31"
 
 [dependencies]
 slint = { version = "1.16.1", default-features = false, features = ["backend-winit", "renderer-software", "compat-1-2", "std", "unstable-winit-030"] }
