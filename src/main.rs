@@ -90,12 +90,26 @@ fn set_window_pos(ui: &AppWindow, x: i32, y: i32) {
     ui.window().set_position(slint::PhysicalPosition::new(x, y));
 }
 
+/// Force the software renderer to repaint the entire window. Moving the window on-screen from the
+/// off-screen park can leave stale buffer content (green artifacts) in fully-transparent regions;
+/// a ±1px size toggle marks the whole surface dirty so it is fully redrawn.
+fn force_full_repaint(ui: &AppWindow) {
+    let s = ui.window().size();
+    if s.width > 0 {
+        let _ = ui
+            .window()
+            .set_size(slint::PhysicalSize::new(s.width + 1, s.height));
+        let _ = ui.window().set_size(s);
+    }
+}
+
 // --- show / hide (UI thread only) --------------------------------------------
 fn do_show_shelf(ui: &AppWindow, policy: u8) {
     if SHELF_VISIBLE.load(Ordering::Relaxed) {
         return;
     }
     set_window_pos(ui, shelf_x(), shelf_y());
+    force_full_repaint(ui);
     CLOSE_POLICY.store(policy, Ordering::Relaxed);
     SHELF_VISIBLE.store(true, Ordering::Relaxed);
     ui.set_shelf_visible(true);
@@ -289,7 +303,10 @@ fn init_winit(ui: &AppWindow) {
         }
         if let Ok(handle) = w.window_handle() {
             if let RawWindowHandle::Win32(win32) = handle.as_raw() {
-                HWND.store(win32.hwnd.get(), Ordering::Relaxed);
+                let hwnd = win32.hwnd.get();
+                HWND.store(hwnd, Ordering::Relaxed);
+                // Win11 rounded corners (frame removal is handled by slint no-frame + decorations).
+                sys::round_corners(hwnd);
             }
         }
 

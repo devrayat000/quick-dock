@@ -2,6 +2,8 @@
 // Visual reference: src-js/ (App.tsx, components/*). Window 340x700, transparent,
 // window-level Acrylic applied from Rust. Colors are white/blue with alpha to match Tailwind.
 
+import { IconDisplay, IconSet } from "@lucide";
+
 export struct ShelfItemData {
     id: int,
     kind: string,        // "file" | "image" | "text" | "url"
@@ -23,14 +25,17 @@ component TxtButton inherits Rectangle {
     callback clicked;
     border-radius: 4px;
     background: touch.has-hover ? rgba(255, 255, 255, 0.1) : transparent;
-    width: lbl.preferred-width + 16px;
-    height: lbl.preferred-height + 4px;
-    lbl := Text {
-        text: root.label;
-        font-size: root.text-size;
-        color: touch.has-hover ? rgba(255, 255, 255, 0.75) : rgba(255, 255, 255, 0.4);
-        vertical-alignment: center;
-        horizontal-alignment: center;
+    // Layout sizes the button to content and centers the label.
+    HorizontalLayout {
+        padding-left: 8px; padding-right: 8px;
+        padding-top: 3px; padding-bottom: 3px;
+        Text {
+            text: root.label;
+            font-size: root.text-size;
+            color: touch.has-hover ? rgba(255, 255, 255, 0.75) : rgba(255, 255, 255, 0.4);
+            vertical-alignment: center;
+            horizontal-alignment: center;
+        }
     }
     touch := TouchArea {
         clicked => {
@@ -61,13 +66,14 @@ component CardShell inherits Rectangle {
 
     @children
 
-    // Top layer: ⠿ reorder handle (left, vertically centered).
-    handle := Text {
-        text: "⠿";
-        font-size: 14px;
-        x: 6px;
+    // Top layer: reorder handle (left, vertically centered).
+    handle := IconDisplay {
+        icon: IconSet.GripVertical;
+        size: 14px;
+        stroke-width: 2;
+        x: 3px;
         y: (parent.height - self.height) / 2;
-        color: handle-touch.has-hover ? rgba(255, 255, 255, 0.5) : rgba(255, 255, 255, 0.2);
+        stroke: handle-touch.has-hover ? rgba(255, 255, 255, 0.5) : rgba(255, 255, 255, 0.2);
     }
     handle-touch := TouchArea {
         x: 0; y: 0;
@@ -95,12 +101,13 @@ component CardShell inherits Rectangle {
         background: rm-touch.has-hover ? rgba(255, 255, 255, 0.1) : transparent;
         opacity: card-hover.has-hover ? 1.0 : 0.0;
         animate opacity { duration: 120ms; }
-        Text {
-            text: "✕";
-            font-size: 10px;
-            color: rm-touch.has-hover ? rgba(255, 255, 255, 0.8) : rgba(255, 255, 255, 0.2);
-            horizontal-alignment: center;
-            vertical-alignment: center;
+        IconDisplay {
+            icon: IconSet.X;
+            size: 12px;
+            stroke-width: 2.5;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            stroke: rm-touch.has-hover ? rgba(255, 255, 255, 0.8) : rgba(255, 255, 255, 0.2);
         }
         rm-touch := TouchArea {
             clicked => {
@@ -122,24 +129,28 @@ component ModeRow inherits Rectangle {
     border-color: selected ? rgba(96, 165, 250, 0.4) : rgba(255, 255, 255, 0.06);
     background: selected ? rgba(96, 165, 250, 0.1)
         : (touch.has-hover ? rgba(255, 255, 255, 0.06) : rgba(255, 255, 255, 0.03));
-    height: lay.preferred-height + 16px;
+    // Height derives from the padded layout, so top/bottom padding are exactly controlled.
+    height: lay.preferred-height;
     touch := TouchArea {
         clicked => {
             root.pick();
         }
     }
     lay := HorizontalLayout {
-        x: 10px; y: 8px;
-        width: parent.width - 20px;
+        padding-left: 10px; padding-right: 10px;
+        padding-top: 8px; padding-bottom: 8px;
         spacing: 10px;
-        Rectangle {
-            width: 12px; height: 12px;
-            y: 2px;
-            border-radius: 6px;
-            border-width: 2px;
-            border-color: selected ? rgb(96, 165, 250) : rgba(255, 255, 255, 0.3);
-            background: selected ? rgb(96, 165, 250) : transparent;
-            vertical-stretch: 0;
+        // Radio, top-aligned to the first text line.
+        VerticalLayout {
+            alignment: start;
+            padding-top: 2px;
+            Rectangle {
+                width: 12px; height: 12px;
+                border-radius: 6px;
+                border-width: 2px;
+                border-color: selected ? rgb(96, 165, 250) : rgba(255, 255, 255, 0.3);
+                background: selected ? rgb(96, 165, 250) : transparent;
+            }
         }
         VerticalLayout {
             spacing: 2px;
@@ -313,12 +324,13 @@ component ItemCard inherits CardShell {
                         width: parent.width; height: parent.height;
                         image-fit: cover;
                     }
-                    if !data.has-thumb: Text {
-                        text: "🖼";
-                        font-size: 24px;
-                        color: rgba(255, 255, 255, 0.25);
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
+                    if !data.has-thumb: IconDisplay {
+                        icon: IconSet.Image;
+                        size: 24px;
+                        stroke-width: 2;
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                        stroke: rgba(255, 255, 255, 0.25);
                     }
                 }
             }
@@ -369,10 +381,11 @@ component ItemCard inherits CardShell {
             spacing: 8px;
             HorizontalLayout {
                 spacing: 8px;
-                Text {
-                    text: "🔗";
-                    font-size: 14px;
-                    color: rgba(255, 255, 255, 0.4);
+                IconDisplay {
+                    icon: IconSet.Link;
+                    size: 14px;
+                    stroke-width: 2;
+                    stroke: rgba(255, 255, 255, 0.4);
                 }
                 Text {
                     text: data.display;
@@ -425,7 +438,11 @@ export component AppWindow inherits Window {
     property <length> drag-cur-y;
 
     title: "SnapShelf";
-    background: transparent;
+    no-frame: true;
+    always-on-top: true;
+    resize-border-width: 0px;
+    // Fully transparent (explicit alpha) so DWM Acrylic/Mica shows behind the software-rendered UI.
+    background: #00000000;
     preferred-width: 340px;
     preferred-height: 700px;
     forward-focus: keys;
@@ -469,7 +486,7 @@ export component AppWindow inherits Window {
         VerticalLayout {
             // Header
             Rectangle {
-                height: 37px;
+                height: 40px;
                 HorizontalLayout {
                     padding-left: 12px; padding-right: 12px;
                     padding-top: 8px; padding-bottom: 8px;
@@ -482,25 +499,48 @@ export component AppWindow inherits Window {
                         vertical-alignment: center;
                         horizontal-stretch: 1;
                     }
-                    TxtButton {
-                        label: "⚙";
-                        text-size: 12px;
-                        clicked => {
-                            root.settings-open = !root.settings-open;
+                    Rectangle {
+                        width: 26px; height: 24px;
+                        border-radius: 4px;
+                        background: gear-touch.has-hover || root.settings-open ? rgba(255, 255, 255, 0.1) : transparent;
+                        IconDisplay {
+                            icon: IconSet.Settings;
+                            size: 15px;
+                            stroke-width: 2;
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                            stroke: gear-touch.has-hover || root.settings-open ? rgba(255, 255, 255, 0.7) : rgba(255, 255, 255, 0.4);
+                        }
+                        gear-touch := TouchArea {
+                            clicked => {
+                                root.settings-open = !root.settings-open;
+                            }
                         }
                     }
                     TxtButton {
                         label: "Clear";
                         text-size: 12px;
+                        height: 24px;
                         clicked => {
                             root.clear-all();
                         }
                     }
-                    TxtButton {
-                        label: "✕";
-                        text-size: 12px;
-                        clicked => {
-                            root.request-hide();
+                    Rectangle {
+                        width: 26px; height: 24px;
+                        border-radius: 4px;
+                        background: x-touch.has-hover ? rgba(255, 255, 255, 0.1) : transparent;
+                        IconDisplay {
+                            icon: IconSet.X;
+                            size: 15px;
+                            stroke-width: 2;
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                            stroke: x-touch.has-hover ? rgba(255, 255, 255, 0.7) : rgba(255, 255, 255, 0.4);
+                        }
+                        x-touch := TouchArea {
+                            clicked => {
+                                root.request-hide();
+                            }
                         }
                     }
                 }
@@ -559,11 +599,14 @@ export component AppWindow inherits Window {
                             VerticalLayout {
                                 alignment: center;
                                 spacing: 12px;
-                                Text {
-                                    text: "📦";
-                                    font-size: 36px;
-                                    opacity: 0.6;
-                                    horizontal-alignment: center;
+                                HorizontalLayout {
+                                    alignment: center;
+                                    IconDisplay {
+                                        icon: IconSet.Package;
+                                        size: 36px;
+                                        stroke-width: 1.5;
+                                        stroke: rgba(255, 255, 255, 0.3);
+                                    }
                                 }
                                 Text {
                                     text: "Shelf is empty";
@@ -631,11 +674,11 @@ export component AppWindow inherits Window {
                         HorizontalLayout {
                             alignment: center;
                             spacing: 6px;
-                            Text {
-                                text: "⌨";
-                                font-size: 12px;
-                                color: paste-touch.has-hover ? rgba(255, 255, 255, 0.7) : rgba(255, 255, 255, 0.4);
-                                vertical-alignment: center;
+                            IconDisplay {
+                                icon: IconSet.Clipboard;
+                                size: 13px;
+                                stroke-width: 2;
+                                stroke: paste-touch.has-hover ? rgba(255, 255, 255, 0.7) : rgba(255, 255, 255, 0.4);
                             }
                             Text {
                                 text: "Paste clipboard (Ctrl+V)";

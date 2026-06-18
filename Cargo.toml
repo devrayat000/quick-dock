@@ -6,6 +6,7 @@ authors = ["zulab"]
 edition = "2021"
 
 [build-dependencies]
+lucide-slint = "1.20.0"
 slint-build = "1.16.1"
 
 [dependencies]
@@ -15,7 +16,7 @@ serde_json = "1"
 window-vibrancy = "0.7.1"
 image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "webp", "gif"] }
 drag = "2.1.1"
-windows-sys = { version = "0.61.2", features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation", "Win32_UI_Input_KeyboardAndMouse", "Win32_System_DataExchange", "Win32_System_Memory", "Win32_System_Ole", "Win32_UI_Shell", "Win32_Globalization"] }
+windows-sys = { version = "0.61.2", features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation", "Win32_UI_Input_KeyboardAndMouse", "Win32_System_DataExchange", "Win32_System_Memory", "Win32_System_Ole", "Win32_UI_Shell", "Win32_Globalization", "Win32_Graphics_Dwm"] }
 tray-icon = "0.24.1"
 raw-window-handle = "0.6.2"
 

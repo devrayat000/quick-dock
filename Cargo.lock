@@ -2832,6 +2832,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "lucide-slint"
+version = "1.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "899abb2e44ef6f79c456576f96e684ef3eed755f091e7c1520f0cc7e822edd85"
+
+[[package]]
 name = "lyon_algorithms"
 version = "1.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4688,6 +4694,7 @@ version = "1.0.0"
 dependencies = [
  "drag",
  "image",
+ "lucide-slint",
  "raw-window-handle",
  "serde",
  "serde_json",

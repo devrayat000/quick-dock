@@ -67,6 +67,23 @@ pub fn set_clipboard_text(text: &str) {
     }
 }
 
+/// Ask DWM to render Windows 11 rounded corners on a borderless window.
+pub fn round_corners(hwnd: isize) {
+    use windows_sys::Win32::Graphics::Dwm::DwmSetWindowAttribute;
+    // DWMWA_WINDOW_CORNER_PREFERENCE = 33, DWMWCP_ROUND = 2.
+    const DWMWA_WINDOW_CORNER_PREFERENCE: u32 = 33;
+    const DWMWCP_ROUND: i32 = 2;
+    let pref: i32 = DWMWCP_ROUND;
+    unsafe {
+        DwmSetWindowAttribute(
+            hwnd as HWND,
+            DWMWA_WINDOW_CORNER_PREFERENCE,
+            &pref as *const i32 as *const core::ffi::c_void,
+            std::mem::size_of::<i32>() as u32,
+        );
+    }
+}
+
 /// Open a URL/path in the default handler via ShellExecuteW("open", ...).
 pub fn open_url(url: &str) {
     let op: Vec<u16> = "open".encode_utf16().chain(once(0)).collect();
