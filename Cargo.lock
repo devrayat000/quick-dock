@@ -4696,8 +4696,6 @@ dependencies = [
  "image",
  "lucide-slint",
  "raw-window-handle",
- "serde",
- "serde_json",
  "slint",
  "slint-build",
  "tray-icon",

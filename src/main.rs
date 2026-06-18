@@ -15,7 +15,6 @@ use raw_window_handle::HasWindowHandle;
 use slint::winit_030::WinitWindowAccessor;
 use slint::ComponentHandle;
 
-use settings::Settings;
 use state::Shelf;
 
 slint::include_modules!();
@@ -212,9 +211,9 @@ fn main() {
     ui.set_items(SHELF.with(|s| s.model_rc()));
 
     // Load persisted open-mode before showing.
-    let loaded = settings::load(&settings::config_dir());
-    OPEN_MODE.store(settings::mode_to_u8(&loaded.open_mode), Ordering::Relaxed);
-    ui.set_open_mode(loaded.open_mode.clone().into());
+    let open_mode = settings::load_open_mode(&settings::config_dir());
+    OPEN_MODE.store(settings::mode_to_u8(&open_mode), Ordering::Relaxed);
+    ui.set_open_mode(open_mode.clone().into());
 
     wire_callbacks(&ui);
 
@@ -370,11 +369,8 @@ fn wire_callbacks(ui: &AppWindow) {
     ui.on_open_url(|u| sys::open_url(&u));
     ui.on_drag_out(|p| {
         let hwnd = HWND.load(Ordering::Relaxed);
-        eprintln!("[drag-out] callback fired: path={:?} hwnd={:#x}", p.as_str(), hwnd);
         if hwnd != 0 {
             dragout::start_file_drag(hwnd, vec![p.to_string()]);
-        } else {
-            eprintln!("[drag-out] HWND is 0 — aborting");
         }
     });
     ui.on_paste_clipboard(|| paste_clipboard());
@@ -385,10 +381,7 @@ fn wire_callbacks(ui: &AppWindow) {
             let old = OPEN_MODE.load(Ordering::Relaxed);
             let new = settings::mode_to_u8(&mode);
             OPEN_MODE.store(new, Ordering::Relaxed);
-            settings::save(
-                &settings::config_dir(),
-                &Settings { open_mode: mode.to_string() },
-            );
+            settings::save_open_mode(&settings::config_dir(), &mode);
             if let Some(ui) = weak.upgrade() {
                 ui.set_open_mode(mode.clone());
                 if !SHELF_VISIBLE.load(Ordering::Relaxed) {

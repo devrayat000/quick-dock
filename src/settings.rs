@@ -1,14 +1,6 @@
-use serde::{Deserialize, Serialize};
+// Persistence for the single setting (open mode). One word in a plain-text file — no serde/json.
 
-#[derive(Serialize, Deserialize, Clone, Default)]
-pub struct Settings {
-    #[serde(default = "default_open_mode")]
-    pub open_mode: String,
-}
-
-fn default_open_mode() -> String {
-    "hover".to_string()
-}
+use std::path::{Path, PathBuf};
 
 pub fn mode_to_u8(mode: &str) -> u8 {
     match mode {
@@ -19,23 +11,27 @@ pub fn mode_to_u8(mode: &str) -> u8 {
 }
 
 /// %APPDATA%\SnapShelf (replaces Tauri's app_config_dir). Falls back to the temp dir.
-pub fn config_dir() -> std::path::PathBuf {
+pub fn config_dir() -> PathBuf {
     std::env::var_os("APPDATA")
-        .map(std::path::PathBuf::from)
+        .map(PathBuf::from)
         .unwrap_or_else(std::env::temp_dir)
         .join("SnapShelf")
 }
 
-pub fn load(config_dir: &std::path::Path) -> Settings {
-    std::fs::read_to_string(config_dir.join("settings.json"))
-        .ok()
-        .and_then(|data| serde_json::from_str::<Settings>(&data).ok())
-        .unwrap_or_default()
+fn file(config_dir: &Path) -> PathBuf {
+    config_dir.join("open_mode")
 }
 
-pub fn save(config_dir: &std::path::Path, settings: &Settings) {
+/// Load the persisted open mode, validated; defaults to "hover".
+pub fn load_open_mode(config_dir: &Path) -> String {
+    std::fs::read_to_string(file(config_dir))
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| s == "hover" || s == "tab" || s == "tray")
+        .unwrap_or_else(|| "hover".to_string())
+}
+
+pub fn save_open_mode(config_dir: &Path, mode: &str) {
     let _ = std::fs::create_dir_all(config_dir);
-    if let Ok(data) = serde_json::to_string_pretty(settings) {
-        let _ = std::fs::write(config_dir.join("settings.json"), data);
-    }
+    let _ = std::fs::write(file(config_dir), mode);
 }

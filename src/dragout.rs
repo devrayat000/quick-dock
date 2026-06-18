@@ -13,9 +13,8 @@ use raw_window_handle::{
 /// Set true for the duration of an OLE drag-out so the edge poll does not auto-close mid-drag.
 pub static DRAG_OUT_ACTIVE: AtomicBool = AtomicBool::new(false);
 
-/// Minimal Send-able window handle wrapping a raw Win32 HWND.
+/// Minimal window handle wrapping a raw Win32 HWND, for the `drag` crate.
 struct HwndHandle(isize);
-unsafe impl Send for HwndHandle {}
 
 impl HasWindowHandle for HwndHandle {
     fn window_handle(&self) -> Result<WindowHandle<'_>, HandleError> {
@@ -33,34 +32,22 @@ impl HasDisplayHandle for HwndHandle {
     }
 }
 
-/// Start an OS file drag of `paths` from the given HWND. Runs on a background thread
-/// (start_drag drives the blocking DoDragDrop loop) and self-clears DRAG_OUT_ACTIVE.
-/// Must be called on the UI (winit) thread while the mouse button is still held: DoDragDrop
-/// requires the calling thread to be the STA-initialized window thread holding the mouse capture.
-/// It runs a nested modal loop (painting/cursor handled by the OS) and returns after the drop.
+/// Start an OS file drag of `paths` from the given HWND.
+/// MUST be called on the UI (winit) thread while the mouse button is still held: DoDragDrop requires
+/// the STA-initialized window thread that holds the mouse capture. It runs a nested modal loop
+/// (painting/cursor handled by the OS) and returns after the drop.
 pub fn start_file_drag(hwnd: isize, paths: Vec<String>) {
     let file_paths: Vec<PathBuf> = paths.iter().map(PathBuf::from).collect();
-    let exist: Vec<bool> = file_paths.iter().map(|p| p.exists()).collect();
-    eprintln!(
-        "[drag-out] start_file_drag hwnd={:#x} paths={:?} exists={:?}",
-        hwnd, file_paths, exist
-    );
 
     DRAG_OUT_ACTIVE.store(true, Ordering::Relaxed);
     let handle = HwndHandle(hwnd);
-    let result = drag::start_drag(
+    let _ = drag::start_drag(
         &handle,
         drag::DragItem::Files(file_paths),
         drag::Image::Raw(vec![]),
-        |result, _cursor| {
-            eprintln!("[drag-out] on_drop callback: {:?}", result);
-        },
+        |_result, _cursor| {},
         drag::Options::default(),
     );
-    match &result {
-        Ok(_) => eprintln!("[drag-out] DoDragDrop returned Ok"),
-        Err(e) => eprintln!("[drag-out] start_drag ERROR: {:?}", e),
-    }
     DRAG_OUT_ACTIVE.store(false, Ordering::Relaxed);
 
     // DoDragDrop swallows the mouse-up that ended the drag, so Slint's TouchArea never releases
