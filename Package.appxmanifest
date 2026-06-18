@@ -15,11 +15,11 @@
          Name      -> "Package/Identity/Name"
          Publisher -> "Package/Identity/Publisher"  (the CN=... value)
        PublisherDisplayName (in <Properties> below) must match too.
-       Version is overwritten at pack time by msix.ps1 from package.json (X.Y.Z.0). -->
+       Version is overwritten at pack time by msix.ps1 from Cargo.toml (X.Y.Z.0). -->
   <Identity
     Name="zulab.SnapShelf"
     Publisher="CN=A68081B3-E8B3-48C1-9F88-8EC3690D0963"
-    Version="0.2.0.0" />
+    Version="1.0.0.0" />
 
   <Properties>
     <DisplayName>SnapShelf</DisplayName>

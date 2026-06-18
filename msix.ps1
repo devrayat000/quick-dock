@@ -1,4 +1,4 @@
-# msix.ps1 — build SnapShelf, pack per-arch MSIX, and bundle for the Microsoft Store.
+# msix.ps1 — build SnapShelf (Slint/Rust), pack per-arch MSIX, and bundle for the Microsoft Store.
 #
 # Usage:
 #   pwsh msix.ps1                      # build all archs SERIALLY + bundle (needs MSVC ARM64 tools)
@@ -16,18 +16,20 @@ param (
     [string]$Arch = "",
     [switch]$Bundle,
     [switch]$SkipBuild,
-    [switch]$SkipFrontend,   # frontend already built once by the serial driver; skip rebuilding here
     [string]$CertPath = "",
     [string]$CertPassword = "password"
 )
 
 $ErrorActionPreference = "Stop"
 
-# Version = single source of truth (package.json), stripped to the X.Y.Z core. The MSIX Identity
-# version is this + ".0" (4-part, required by appx).
-$pkgVersion = (Get-Content "package.json" -Raw | ConvertFrom-Json).version
-$Version    = ([regex]::Match($pkgVersion, '^\d+\.\d+\.\d+')).Value
-if (-not $Version) { throw "Bad version in package.json: '$pkgVersion' (expected X.Y.Z)" }
+# Version = single source of truth (Cargo.toml [package] version), stripped to the X.Y.Z core. The
+# MSIX Identity version is this + ".0" (4-part, required by appx). The first `version = "X.Y.Z"` in
+# Cargo.toml is the package version (dependency versions follow under [dependencies]).
+$cargoVer = (Get-Content "Cargo.toml" |
+    Select-String '^\s*version\s*=\s*"(\d+\.\d+\.\d+)"' |
+    Select-Object -First 1).Matches.Groups[1].Value
+$Version  = $cargoVer
+if (-not $Version) { throw "Could not read [package] version from Cargo.toml" }
 
 # Arch -> Rust target triple
 $Triples = @{
@@ -39,15 +41,15 @@ $StagingRoot = "winapp-layout"
 $DropDir     = "msix_drop\$Version"
 $OutputDir   = "output"
 $Manifest    = "Package.appxmanifest"
-$IconsDir    = "src-tauri\icons"
+$IconsDir    = "icons"
 $BundleOut   = "$OutputDir\snapshelf_$Version.msixbundle"
 
-# MSIX logos the manifest references by relative path (icons\<name>). Tauri-generated Store logos —
-# regenerate with `pnpm tauri icon`. Copied into <layout>\icons at pack time by their original names.
+# MSIX logos the manifest references by relative path (icons\<name>). Copied into <layout>\icons at
+# pack time by their original names.
 $Logos = @("50x50.png", "44x44.png", "150x150.png")
 
-# Emit a manifest whose Identity Version = package.json version (with a .0 revision), so the packaged
-# Store version always tracks package.json. Written OUTSIDE the payload layout (passed via --manifest)
+# Emit a manifest whose Identity Version = Cargo.toml version (with a .0 revision), so the packaged
+# Store version always tracks Cargo.toml. Written OUTSIDE the payload layout (passed via --manifest)
 # so it is never double-included as a payload file. Returns the generated manifest path.
 function New-VersionedManifest {
     param([string]$A)
@@ -65,22 +67,14 @@ function Pack-Arch {
     param([string]$A)
 
     $triple     = $Triples[$A]
-    # Default cargo/tauri target dir — serial builds, so no per-arch isolation needed.
-    $releaseDir = "src-tauri\target\$triple\release"
+    $releaseDir = "target\$triple\release"
     $exe        = "$releaseDir\snap-shelf.exe"
     $layout     = "$StagingRoot\$A"
 
     if (-not $SkipBuild) {
-        if (-not $SkipFrontend) {
-            Write-Host "==> Building frontend..."
-            pnpm build
-            if ($LASTEXITCODE -ne 0) { throw "frontend build failed" }
-        }
-
-        Write-Host "==> Building $A host ($triple)..."
-        # --no-bundle: we pack the MSIX ourselves below; Tauri's NSIS bundler is not used here.
-        pnpm tauri build --target $triple --no-bundle
-        if ($LASTEXITCODE -ne 0) { throw "tauri build failed for $A" }
+        Write-Host "==> Building $A ($triple)..."
+        cargo build --release --target $triple
+        if ($LASTEXITCODE -ne 0) { throw "cargo build failed for $A" }
     }
 
     if (-not (Test-Path $exe)) { throw "Missing build output: $exe" }
@@ -90,15 +84,14 @@ function Pack-Arch {
     New-Item -ItemType Directory -Force $layout | Out-Null
 
     Copy-Item $exe -Destination $layout
-    # Copy any sibling DLLs Tauri staged next to the exe (none today; future-proof, no per-file naming).
+    # Slint software renderer is statically linked (no runtime DLLs); copy any siblings just in case.
     Get-ChildItem $releaseDir -Filter *.dll -ErrorAction SilentlyContinue | Copy-Item -Destination $layout
-    # MSIX logos must physically live in the layout — the manifest names them by relative path
-    # (icons\<name>). Copy the tauri-generated Store logos in by their original names.
+    # MSIX logos must physically live in the layout — the manifest names them by relative path.
     $layoutIcons = "$layout\icons"
     New-Item -ItemType Directory -Force $layoutIcons | Out-Null
     foreach ($logo in $Logos) {
         $src = Join-Path $IconsDir $logo
-        if (-not (Test-Path $src)) { throw "Missing logo: $src (run 'pnpm tauri icon')" }
+        if (-not (Test-Path $src)) { throw "Missing logo: $src" }
         Copy-Item $src -Destination $layoutIcons
     }
 
@@ -135,7 +128,7 @@ function New-Bundle {
 if (! (Test-Path $DropDir)) { New-Item -ItemType Directory $DropDir | Out-Null }
 
 if ($Bundle -and -not $Arch) {
-    # Bundle-only: bundle existing msix_drop\<ver>\*.appx.
+    # Bundle-only: bundle existing msix_drop\<ver>\*.msix.
     New-Bundle
 }
 elseif ($Arch) {
@@ -147,12 +140,6 @@ else {
     Remove-Item -Recurse -Force $DropDir -ErrorAction SilentlyContinue
     New-Item -ItemType Directory $DropDir | Out-Null
 
-    # Frontend ONCE up front (arch-independent); each arch pack then runs with -SkipFrontend.
-    Write-Host "==> Building frontend (once)..."
-    pnpm build
-    if ($LASTEXITCODE -ne 0) { throw "frontend build failed" }
-
-    $SkipFrontend = $true
     foreach ($a in $Triples.Keys) {
         Pack-Arch $a
     }
