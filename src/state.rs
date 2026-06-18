@@ -126,10 +126,33 @@ impl Shelf {
         self.model.clone().into()
     }
 
+    /// Find an existing item that is the "same" as `item` (path for file/image, url for url,
+    /// text for text) and return its id.
+    fn duplicate_id(&self, item: &ShelfItemData) -> Option<i32> {
+        (0..self.model.row_count()).find_map(|i| {
+            let r = self.model.row_data(i)?;
+            let same = match item.kind.as_str() {
+                "url" => !item.url.is_empty() && r.url == item.url,
+                "text" => !item.text.is_empty() && r.text == item.text,
+                _ => !item.path.is_empty() && r.path == item.path,
+            };
+            if same {
+                Some(r.id)
+            } else {
+                None
+            }
+        })
+    }
+
+    /// Add to the TOP of the list. If the same item already exists, remove it first so the new
+    /// one appears at the top (move-to-top on re-add).
     pub fn add(&self, item: ShelfItemData) -> i32 {
+        if let Some(existing) = self.duplicate_id(&item) {
+            self.remove(existing);
+        }
         let id = item.id;
-        self.created.borrow_mut().push((id, now_ms()));
-        self.model.push(item);
+        self.created.borrow_mut().insert(0, (id, now_ms()));
+        self.model.insert(0, item);
         id
     }
 

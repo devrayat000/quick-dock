@@ -48,7 +48,6 @@ component TxtButton inherits Rectangle {
 // drag handle (left), remove button (top-right, on hover). Content injected by callers.
 component CardShell inherits Rectangle {
     in property <int> item-id;
-    in property <length> content-height;
     callback remove();
     callback handle-pressed(length);   // absolute y where the handle drag began
     callback handle-moved(length);     // current absolute y
@@ -57,14 +56,19 @@ component CardShell inherits Rectangle {
     border-width: 1px;
     border-color: rgba(255, 255, 255, 0.1);
     background: rgba(255, 255, 255, 0.08);
-    height: content-height + 20px;     // pt-2.5 + pb-2.5 = 20px
 
     // Bottom layer: hover detector for the whole card (children stack above).
     card-hover := TouchArea {
         x: 0; y: 0; width: parent.width; height: parent.height;
     }
 
-    @children
+    // Injected content, padded. This layout drives the card height — no absolute positioning,
+    // so each card gets a distinct rect and a press hit-tests to the correct row.
+    HorizontalLayout {
+        padding-left: 16px; padding-right: 6px;
+        padding-top: 10px; padding-bottom: 10px;
+        @children
+    }
 
     // Top layer: reorder handle (left, vertically centered).
     handle := IconDisplay {
@@ -232,17 +236,16 @@ component SettingsPanel inherits Rectangle {
 // --- Item card: dispatches by kind --------------------------------------------
 component ItemCard inherits CardShell {
     in property <ShelfItemData> data;
-    callback copy-text(string);
-    callback open-url(string);
-    callback drag-out(string);
+    // No-arg: the actual value is resolved by the caller (the `for` loop) from its own `item`
+    // binding, which is reliably per-row. Referencing `data.*` from deep inside a nested
+    // TouchArea callback can resolve to the wrong repeated instance.
+    callback copy-primary();
+    callback open-link();
+    callback drag-out();
 
     item-id: data.id;
-    content-height: body.preferred-height;
 
-    body := VerticalLayout {
-        x: 16px; y: 10px;
-        width: parent.width - 22px;
-
+    VerticalLayout {
         // FILE
         if data.kind == "file": VerticalLayout {
             spacing: 8px;
@@ -252,7 +255,7 @@ component ItemCard inherits CardShell {
                 // Start the OS drag on press (DoDragDrop needs the button still held).
                 pointer-event(ev) => {
                     if (ev.button == PointerEventButton.left && ev.kind == PointerEventKind.down) {
-                        root.drag-out(data.path);
+                        root.drag-out();
                     }
                 }
                 HorizontalLayout {
@@ -295,13 +298,13 @@ component ItemCard inherits CardShell {
                 TxtButton {
                     label: "Copy path";
                     clicked => {
-                        root.copy-text(data.path);
+                        root.copy-primary();
                     }
                 }
                 TxtButton {
                     label: "Drag out ↗";
                     clicked => {
-                        root.drag-out(data.path);
+                        root.drag-out();
                     }
                 }
             }
@@ -315,7 +318,7 @@ component ItemCard inherits CardShell {
                 mouse-cursor: grab;
                 pointer-event(ev) => {
                     if (ev.button == PointerEventButton.left && ev.kind == PointerEventKind.down) {
-                        root.drag-out(data.path);
+                        root.drag-out();
                     }
                 }
                 Rectangle {
@@ -354,7 +357,7 @@ component ItemCard inherits CardShell {
                     TxtButton {
                         label: "Drag out ↗";
                         clicked => {
-                            root.drag-out(data.path);
+                            root.drag-out();
                         }
                     }
                 }
@@ -375,7 +378,7 @@ component ItemCard inherits CardShell {
                 TxtButton {
                     label: "Copy";
                     clicked => {
-                        root.copy-text(data.text);
+                        root.copy-primary();
                     }
                 }
             }
@@ -406,13 +409,13 @@ component ItemCard inherits CardShell {
                 TxtButton {
                     label: "Open";
                     clicked => {
-                        root.open-url(data.url);
+                        root.open-link();
                     }
                 }
                 TxtButton {
                     label: "Copy";
                     clicked => {
-                        root.copy-text(data.url);
+                        root.copy-primary();
                     }
                 }
             }
@@ -634,14 +637,17 @@ export component AppWindow inherits Window {
                             // Dragged card leaves a faint placeholder gap; the floating ghost
                             // (rendered at window level) follows the cursor.
                             opacity: root.drag-index == idx ? 0.25 : 1.0;
-                            copy-text(t) => {
-                                root.copy-text(t);
+                            // Resolve the value from `item` (per-row reliable), not from the
+                            // card's `data` deep inside a nested callback.
+                            copy-primary => {
+                                root.copy-text(item.kind == "text" ? item.text
+                                    : (item.kind == "url" ? item.url : item.path));
                             }
-                            open-url(u) => {
-                                root.open-url(u);
+                            open-link => {
+                                root.open-url(item.url);
                             }
-                            drag-out(p) => {
-                                root.drag-out(p);
+                            drag-out => {
+                                root.drag-out(item.path);
                             }
                             remove => {
                                 root.remove-item(item.id);

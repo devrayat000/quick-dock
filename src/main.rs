@@ -146,6 +146,8 @@ fn do_hide_shelf(ui: &AppWindow) {
 // --- inbound drop handling (UI thread) ---------------------------------------
 fn handle_dropped_file(ui_weak: &slint::Weak<AppWindow>, path: std::path::PathBuf) {
     let path_str = path.to_string_lossy().to_string();
+    // Dedup + move-to-top is handled in Shelf::add (also guards against a stray self-drop after
+    // a drag-out).
     let kind = assets::classify_path(&path_str);
     if kind == "image" {
         let id = SHELF.with(|s| s.add(state::make_image(&path_str)));
